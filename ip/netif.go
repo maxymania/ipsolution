@@ -47,7 +47,7 @@ func (a *ArpCache) Init(i int) {
 	a.queue,_ = simplelru.NewLRU(i,nilCB)
 	a.cache,_ = simplelru.NewLRU(i,nilCB)
 }
-func (a *ArpCache) ARP(i *IPNetif,p *IPLayerPart) (sbs []gopacket.SerializeBuffer) {
+func (a *ArpCache) arpin(i *IPNetif,p *IPLayerPart) (sbs []gopacket.SerializeBuffer) {
 	var i4 Key4
 	ip := p.SrcIP
 	mac := p.SrcMac
@@ -105,12 +105,6 @@ func (a *ArpCache) lkup(sb gopacket.SerializeBuffer,n net.IP) (net.HardwareAddr,
 	return nil,false
 }
 
-func (a *ArpCache) Compile(i *IPNetif, sb gopacket.SerializeBuffer,n net.IP) bool {
-	h,ok := a.lkup(sb,n)
-	if ok { i.send(sb,h,layers.EthernetTypeIPv4) }
-	return ok
-}
-
 type IPNetif struct {
 	HWAddr net.HardwareAddr
 	VLANIdentifier uint16
@@ -132,4 +126,17 @@ func (i *IPNetif) send(sb gopacket.SerializeBuffer,h net.HardwareAddr,lt layers.
 		gopacket.SerializeLayers(sb,so,&ep,&dq)
 	}
 }
+
+// Handles an IPv4-ARP packet.
+func (i *IPNetif) InARP(p *IPLayerPart) (sbs []gopacket.SerializeBuffer) {
+	return i.ARP.arpin(i,p)
+}
+
+// Prepare packet for output.
+func (i *IPNetif) CompletePacketIPv4(sb gopacket.SerializeBuffer,n net.IP) bool {
+	h,ok := i.ARP.lkup(sb,n)
+	if ok { i.send(sb,h,layers.EthernetTypeIPv4) }
+	return ok
+}
+
 
