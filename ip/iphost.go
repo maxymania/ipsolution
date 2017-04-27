@@ -39,6 +39,7 @@ type IPv4AddressEntry struct{
 type IPHost struct {
 	V6 map[Key6]*IPv6AddressEntry
 	V4 map[Key4]*IPv4AddressEntry
+	S6 map[Key6]*IPv6AddressEntry
 }
 func (i *IPHost) Init() *IPHost{
 	i.V6 = make(map[Key6]*IPv6AddressEntry)
@@ -48,6 +49,7 @@ func (i *IPHost) Init() *IPHost{
 func (i *IPHost) input4(targ net.IP) (my bool) {
 	var i4 Key4
 	i4.Decode(targ)
+	if i4==0xFFFFFFFF { return true }
 	_,my = i.V4[i4]
 	return
 }
@@ -101,6 +103,47 @@ func (i *IPHost) Input(targ net.IP) (my bool) {
 	}
 	return
 }
-
+func (i *IPHost) addIP4Addr(ip, sn, gw net.IP) {
+	var i4,s4,g4 Key4
+	i4.Decode(ip)
+	addr,_ := i.V4[i4]
+	if addr!=nil { return }
+	if len(sn)==4 {
+		s4.Decode(sn)
+	}else{
+		s4 = 0xFFFFFF00
+	}
+	if len(gw)==4 {
+		g4.Decode(gw)
+	}else{
+		g4 = i4&0xFFFFFF00
+	}
+	
+	addr = &IPv4AddressEntry{i4,s4,g4}
+	i.V4[i4] = addr
+	i.V4[i4|^s4] = addr
+}
+func (i *IPHost) addIP6Addr(ip net.IP) {
+	var i6,m6 Key6
+	i6.Decode(ip)
+	addr,_ := i.V6[i6]
+	if addr!=nil { return }
+	/* Solicited Multicast address */
+	m6.Hi = 0xff02000000000000
+	m6.Lo = 0x00000001ff000000|(i6.Lo&0xffffff)
+	addr = new(IPv6AddressEntry)
+	addr.Unicast = i6
+	addr.SolicitedMulticast = m6
+	i.V6[i6] = addr
+	i.S6[m6] = addr
+}
+func (i *IPHost) AddIPAddr(ip net.IP) {
+	switch len(ip) {
+	case 4:
+		i.addIP4Addr(ip,nil,nil)
+	case 16:
+		i.addIP6Addr(ip)
+	}
+}
 
 

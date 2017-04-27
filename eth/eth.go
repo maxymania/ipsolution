@@ -42,6 +42,7 @@ type EthLayer2 struct{
 }
 func (e *EthLayer2) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback) (err error) {
 	err = e.Ethernet.DecodeFromBytes(data,df)
+	e.VLANIdentifier = 0
 	if err!=nil { return }
 	if e.EthernetType == layers.EthernetTypeDot1Q {
 		err = e.vlan.DecodeFromBytes(e.Payload,df)
@@ -52,6 +53,6 @@ func (e *EthLayer2) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback) (er
 	return
 }
 func (e *EthLayer2) String() string {
-	return fmt.Sprintf("%v->%v (%v)",e.SrcMAC,e.DstMAC,e.EthernetType)
+	return fmt.Sprintf("%v->%v [%v] (%v)",e.SrcMAC,e.DstMAC,e.VLANIdentifier,e.EthernetType)
 }
 
