@@ -116,7 +116,7 @@ type IPNetif struct {
 	VLANIdentifier uint16
 	ARP ArpCache
 }
-func (i *IPNetif) send(sb gopacket.SerializeBuffer,h net.HardwareAddr,lt layers.EthernetType) { // n net.IP
+func (i *IPNetif) send(sb gopacket.SerializeBuffer,h net.HardwareAddr,lt layers.EthernetType) {
 	var ep layers.Ethernet
 	var dq layers.Dot1Q
 	ep.SrcMAC = i.HWAddr

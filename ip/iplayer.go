@@ -45,6 +45,7 @@ type IPLayerPart struct {
 	SrcMac net.HardwareAddr
 	DstMac net.HardwareAddr
 	IsAR bool
+	IsV6 bool
 }
 
 func (ip *IPLayerPart) DecodeType(t gopacket.LayerType,data []byte, df gopacket.DecodeFeedback) (err error) {
@@ -58,6 +59,7 @@ func (ip *IPLayerPart) DecodeType(t gopacket.LayerType,data []byte, df gopacket.
 		ip.SrcIP = ip.V4.SrcIP
 		ip.DstIP = ip.V4.DstIP
 		ip.IsAR = false
+		ip.IsV6 = false
 	case layers.LayerTypeIPv6:
 		err = ip.V6.DecodeFromBytes(data,df)
 		ip.BaseLayer = ip.V6.BaseLayer
@@ -66,6 +68,7 @@ func (ip *IPLayerPart) DecodeType(t gopacket.LayerType,data []byte, df gopacket.
 		ip.SrcIP = ip.V6.SrcIP
 		ip.DstIP = ip.V6.DstIP
 		ip.IsAR = false
+		ip.IsV6 = true
 		if err == nil {
 			if ip.ES6.CanDecode().Contains(ip.NextLayerType) {
 				err = ip.ES6.DecodeFromBytes(ip.Payload,df)
@@ -80,8 +83,7 @@ func (ip *IPLayerPart) DecodeType(t gopacket.LayerType,data []byte, df gopacket.
 		ip.SrcMac = net.HardwareAddr(ip.AR4.SourceHwAddress)
 		ip.DstMac = net.HardwareAddr(ip.AR4.DstHwAddress)
 		ip.IsAR = true
-		// We blindly assume, that Every ARP packet is IPv4
-		ip.NetworkFlow = gopacket.NewFlow(layers.EndpointIPv4,[]byte(ip.SrcIP.To4()),[]byte(ip.DstIP.To4()))
+		ip.IsV6 = false
 	}
 	return
 }
