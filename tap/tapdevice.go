@@ -23,7 +23,7 @@ SOFTWARE.
 */
 
 /* A wrapper for the github.com/songgao/water library to fit in the gopacket terminology. */
-package tun
+package tap
 
 import "github.com/songgao/water"
 import "github.com/google/gopacket"
