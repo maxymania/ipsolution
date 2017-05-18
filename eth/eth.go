@@ -52,6 +52,17 @@ func (e *EthLayer2) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback) (er
 	}
 	return
 }
+func (e *EthLayer2) SerializeTo(b gopacket.SerializeBuffer, opts gopacket.SerializeOptions) (err error) {
+	if e.VLANIdentifier!=0 {
+		e.vlan.Type = e.EthernetType
+		e.EthernetType = layers.EthernetTypeDot1Q
+		defer func() { e.EthernetType = e.vlan.Type } ()
+		e.vlan.VLANIdentifier = e.VLANIdentifier
+		err = e.vlan.SerializeTo(b,opts)
+	}
+	if err==nil { err = e.Ethernet.SerializeTo(b,opts) }
+	return
+}
 func (e *EthLayer2) String() string {
 	return fmt.Sprintf("%v->%v [%v] (%v)",e.SrcMAC,e.DstMAC,e.VLANIdentifier,e.EthernetType)
 }

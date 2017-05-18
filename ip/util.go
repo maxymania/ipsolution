@@ -66,6 +66,7 @@ func LongestPrefixV6(a,b, pivot net.IP) int {
 		A = binary.BigEndian.Uint64([]byte(a)[8:])^C
 		B = binary.BigEndian.Uint64([]byte(b)[8:])^C
 	}
+	if (A==0) && (B==0) { return 0 }
 	return leadzeroCmp(A,B)
 }
 

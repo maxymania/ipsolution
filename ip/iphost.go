@@ -27,29 +27,59 @@ SOFTWARE.
 package ip
 
 import "net"
+import "time"
+import "sync"
+import "container/list"
+
+type IPv6Prefix struct{
+	IP [16]byte
+	Len uint8
+}
+
+type IPv6PrefixEntry struct{
+	Prefix IPv6Prefix
+	Lifetime uint32
+	Tstamp time.Time
+	Onlink bool
+	Slaac bool
+	
+	ListSync sync.Mutex
+	List list.List /* a list of Key6 values */
+}
 
 type IPv6AddressEntry struct{
 	Unicast, SolicitedMulticast Key6
 	
+	/*
+	 * The prefix this IPv6 Address was derived from, if any.
+	 *
+	 * This field is nil for link local addresses.
+	 */
+	Prefix *IPv6PrefixEntry
 }
 type IPv4AddressEntry struct{
 	Addr, Subnetmask, Gateway Key4
 }
 
 type IPHost struct {
-	V6 map[Key6]*IPv6AddressEntry
+	sync.RWMutex
 	V4 map[Key4]*IPv4AddressEntry
+	V6 map[Key6]*IPv6AddressEntry
 	S6 map[Key6]*IPv6AddressEntry
+	Prefix6 map[IPv6Prefix]*IPv6PrefixEntry
 }
 func (i *IPHost) Init() *IPHost{
-	i.V6 = make(map[Key6]*IPv6AddressEntry)
 	i.V4 = make(map[Key4]*IPv4AddressEntry)
+	i.V6 = make(map[Key6]*IPv6AddressEntry)
+	i.S6 = make(map[Key6]*IPv6AddressEntry)
+	i.Prefix6 = make(map[IPv6Prefix]*IPv6PrefixEntry)
 	return i
 }
 func (i *IPHost) input4(targ net.IP) (my bool) {
 	var i4 Key4
 	i4.Decode(targ)
 	if i4==0xFFFFFFFF { return true }
+	i.RLock(); defer i.RUnlock()
 	_,my = i.V4[i4]
 	return
 }
@@ -90,6 +120,7 @@ func (i *IPHost) input6(targ net.IP) (my bool) {
 		}
 	}
 	
+	i.RLock(); defer i.RUnlock()
 	i6.Decode(targ)
 	_,my = i.V6[i6]
 	return
