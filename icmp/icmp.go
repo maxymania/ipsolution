@@ -31,6 +31,7 @@ import "github.com/google/gopacket/layers"
 
 import "fmt"
 import "net"
+import "container/list"
 
 var ENotSupp = fmt.Errorf("Protocol not supported")
 var EInvalid = fmt.Errorf("Protocol violation")
@@ -58,6 +59,8 @@ type Host struct{
 	EchoSocket Notifyable
 	NC6 *Nd6Cache
 	Host *ip.IPHost
+	Mac net.HardwareAddr
+	Vlan uint16
 	
 	/* IPv6 */
 	CurHopLimit uint8
@@ -231,7 +234,30 @@ func (h *Host) input6(e *eth.EthLayer2, i *ip.IPLayerPart, po PacketOutput) (err
 	}
 	return
 }
-
+func (h *Host) send_IPv6(l *list.List, dst net.HardwareAddr, po PacketOutput) {
+	if l.Len()==0 { return }
+	var e eth.EthLayer2
+	e.SrcMAC = h.Mac
+	e.VLANIdentifier = h.Vlan
+	e.DstMAC = dst
+	e.EthernetType = layers.EthernetTypeIPv6
+	
+	op := gopacket.SerializeOptions{true,true}
+	for elem := l.Front(); elem!=nil; elem = elem.Next() {
+		switch ev := elem.Value.(type) {
+		case gopacket.SerializeBuffer:
+			if e.SerializeTo(ev,op)==nil {
+				po.WritePacketData(ev.Bytes())
+			}
+		case []byte:
+			ob := gopacket.NewSerializeBufferExpectedSize(len(ev)+20,0)
+			err := gopacket.SerializeLayers(ob,op,&e,gopacket.Payload(ev))
+			if err==nil {
+				po.WritePacketData(ob.Bytes())
+			}
+		}
+	}
+}
 
 
 

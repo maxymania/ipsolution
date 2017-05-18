@@ -28,6 +28,7 @@ import "sync"
 import "net"
 import "time"
 import "math/rand"
+import "container/list"
 
 /* --------------------------------ND6-Part--------------------------------- */
 
@@ -115,7 +116,7 @@ func NewIPv6Addr(i net.IP) (s IPv6Addr) {
  *      place.
  */
 type Nd6Nce struct {
-	
+	sync.RWMutex
 	
 	State  ND6_NC_STATE
 	IPAddr IPv6Addr
@@ -128,13 +129,15 @@ type Nd6Nce struct {
 	IsRouter bool
 	
 	Entry,RouterEntry Member /* Router-List-Entry */
-	sync.RWMutex
+	
+	Sendchain *list.List
 }
 func (n *Nd6Nce) Init() *Nd6Nce {
 	n.Entry.Value = n
 	n.RouterEntry.Value = n
 	n.State = ND6_NC__PHANTOM_
 	n.IsRouter = false
+	n.Sendchain = list.New()
 	return n
 }
 

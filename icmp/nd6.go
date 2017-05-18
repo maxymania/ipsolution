@@ -26,12 +26,14 @@ SOFTWARE.
 package icmp
 
 import "github.com/maxymania/ipsolution/ip"
+import "github.com/google/gopacket"
 import "github.com/google/gopacket/layers"
 import "net"
 import "time"
 import "bytes"
 import "encoding/binary"
 import "math/rand"
+import "container/list"
 
 /*
  * RFC-4861 10. Protocol Constants.
@@ -88,6 +90,48 @@ func ipis0(ip net.IP) bool{
 	}
 	return true
 }
+
+func (h *Host) nd6CreateNeighborAdvertisement(addr, rem net.IP,R,S,O bool) gopacket.SerializeBuffer{
+	buf := new(bytes.Buffer)
+	buf.Write(addr)
+	mac := h.Mac
+	macl := len(mac)+2
+	nm := (macl+7)&7
+	hml := macl>>3
+	if nm!=0 { hml++ }
+	
+	/* Target Link-Layer Address */
+	buf.WriteByte(2)
+	buf.WriteByte(byte(hml))
+	buf.Write(mac)
+	for ;nm>0;nm-- {
+		buf.WriteByte(0)
+	}
+	
+	var ip layers.IPv6
+	var icmp layers.ICMPv6
+	icmp.TypeCode = layers.CreateICMPv6TypeCode(136,0)
+	icmp.TypeBytes[0] = 0
+	icmp.TypeBytes[1] = 0
+	icmp.TypeBytes[2] = 0
+	icmp.TypeBytes[3] = 0
+	if R { icmp.TypeBytes[0]|=0x80 }
+	if S { icmp.TypeBytes[0]|=0x40 }
+	if O { icmp.TypeBytes[0]|=0x20 }
+	icmp.SetNetworkLayerForChecksum(&ip)
+	ip.TrafficClass = 0
+	ip.FlowLabel = rand.Uint32()
+	ip.SrcIP = addr
+	ip.DstIP = rem
+	ip.HopLimit = 255
+	
+	SB := gopacket.NewSerializeBufferExpectedSize(1280,0)
+	op := gopacket.SerializeOptions{true,true}
+	err := gopacket.SerializeLayers(SB,op,&ip,&icmp,gopacket.Payload(buf.Bytes()))
+	if err!=nil { return nil }
+	return SB
+}
+
 
 func (h *Host) nd6NeighborSolicitation(i *ip.IPLayerPart, cm *layers.ICMPv6, po PacketOutput) {
 	/*
@@ -208,10 +252,45 @@ restartCache:
 			nce.HWAddr = source_lla
 			nce.Entry.MoveToBack()
 		}
-		// TODO: send sendchain packets.
+		sendchain := nce.Sendchain
+		nce.Sendchain = list.New()
+		
+		{
+			/* Send Neighbor Advertisement. */
+			buffer := h.nd6CreateNeighborAdvertisement(target,i.SrcIP,false,true,false)
+			if buffer!=nil { sendchain.PushFront(buffer) }
+		}
+		
+		go h.send_IPv6(sendchain,source_lla,po)
+	}else{
+		ncache := h.NC6
+restartCache2:
+		nce := ncache.LookupValidOnly(target)
+		if nce==nil { return /* Can't Send Neighbor Advertisements. (XXX) */ }
+		nce.RLock()
+		
+		/* This handles an extremely rare pathological case. */
+		if nce.Entry.Parent()!=ncache {
+			nce.RUnlock()
+			goto restartCache2
+		}
+		defer nce.RUnlock()
+		
+		switch nce.State {
+		case ND6_NC__PHANTOM_,ND6_NC_INCOMPLETE:
+			return /* Can't Send Neighbor Advertisements. (XXX) */
+		}
+		
+		sendchain := list.New()
+		
+		{
+			/* Send Neighbor Advertisement. */
+			buffer := h.nd6CreateNeighborAdvertisement(target,i.SrcIP,false,true,false)
+			if buffer!=nil { sendchain.PushFront(buffer) }
+		}
+		
+		go h.send_IPv6(sendchain,nce.HWAddr,po)
 	}
-	
-	/* TODO: send Neighbor Advertisements. */
 	
 }
 
@@ -425,8 +504,11 @@ restartCache:
 		nce.RouterEntry.Remove()
 	}
 	
-	/* TODO Send 'sendchain' packets. */
+	sendchain := nce.Sendchain
+	nce.Sendchain = list.New()
 	
+	/* Send 'sendchain' packets. */
+	go h.send_IPv6(sendchain,target_lla,po)
 }
 
 func (h *Host) nd6RouterAdvertisement(i *ip.IPLayerPart, cm *layers.ICMPv6, po PacketOutput) {
