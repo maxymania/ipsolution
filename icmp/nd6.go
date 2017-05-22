@@ -264,6 +264,17 @@ func (h *Host) nd6NeighborSolicitation(i *ip.IPLayerPart, cm *layers.ICMPv6, po 
 		
 	}
 	
+	taentry,target_is_local := h.Host.GetTarget6(target)
+	if target_is_local && taentry.Tentative { /* Tentative address! */
+		
+		/* SLAAC failed! */
+		if source_addr_is_unspecified {
+			h.Host.SlaacFailedV6(taentry)
+		}
+		return
+	}
+	
+	
 	source_lla := net.HardwareAddr(nil)
 	
 	options := cm.Payload[16:]
@@ -343,7 +354,7 @@ restartCache:
 		sendchain := nce.Sendchain
 		nce.Sendchain = list.New()
 		
-		{
+		if target_is_local {
 			/* Send Neighbor Advertisement. */
 			buffer := h.nd6CreateNeighborAdvertisement(target,i.SrcIP,false,true,false)
 			if buffer!=nil { sendchain.PushFront(buffer) }
@@ -371,7 +382,7 @@ restartCache2:
 		
 		sendchain := list.New()
 		
-		{
+		if target_is_local {
 			/* Send Neighbor Advertisement. */
 			buffer := h.nd6CreateNeighborAdvertisement(target,i.SrcIP,false,true,false)
 			if buffer!=nil { sendchain.PushFront(buffer) }
@@ -815,7 +826,7 @@ restartCache:
 	/* Unlock before processing prefixes. */
 	nce.Unlock()
 	
-	h.Host.Lock();  h.Host.Unlock()
+	h.Host.Lock(); defer h.Host.Unlock()
 	
 	/*
 	 * For each Prefix Information option with the on-link flag set, a host

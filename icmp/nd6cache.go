@@ -278,6 +278,42 @@ func (n *Nd6Cache) AddRedirect(target,dest IPv6Addr) {
 	}
 	n.redirect[target] = dest
 }
+func (n *Nd6Cache) SelectRouter() *IPv6Addr {
+	li := list.New()
+	n.Routers.Copy(li)
+	for e := li.Front(); e!=nil ; e = e.Next() {
+		nce := e.Value.(*Nd6Nce)
+		/*
+		 * Routers that are reachable or probably reachable (i.e., in any
+                 * state other than INCOMPLETE) SHOULD be preferred over routers
+                 * whose reachability is unknown or suspect.
+                 */
+		switch nce.State {
+		case ND6_NC__PHANTOM_,ND6_NC_INCOMPLETE: continue
+		}
+		return &nce.IPAddr
+	}
+	
+	/*
+	 * RFC-4861:
+	 *   When no routers on the list are known to be reachable or
+	 *   probably reachable, routers SHOULD be selected in a round-robin
+	 *   fashion, so that subsequent requests for a default router do not
+	 *   return the same router until all other routers have been
+	 *   selected.
+	 *   Cycling through the router list in this case ensures that all
+	 *   available routers are actively probed by the Neighbor
+	 *   Unreachability Detection algorithm. A request for a default
+	 *   router is made in conjunction with the sending of a packet to a
+	 *   router, and the selected router will be probed for reachability
+	 *   as a side effect.
+	 */
+	le := n.Routers.MoveFrontToBack()
+	if le==nil { return nil }
+	nce := le.Value.(*Nd6Nce)
+	return &nce.IPAddr
+}
+
 func (n *Nd6Cache) TimerEvent(h *Host, e *eth.EthLayer2,po PacketOutput, NOW time.Time) {
 	/* Process NCEs in the DELAY-state */
 	for {
@@ -311,16 +347,18 @@ func (n *Nd6Cache) TimerEvent(h *Host, e *eth.EthLayer2,po PacketOutput, NOW tim
 			continue
 		}
 		switch nce.State {
+		/*
 		case ND6_NC_PROBE: {
 			srcI := net.IP(nce.LocalIPAddr.Array[:])
 			dstI := net.IP(nce.IPAddr.Array[:])
-			solp,_ := h.nd6CreateNeighborSolicitation(srcI,dstI,dstI) /* NUD */
+			solp,_ := h.nd6CreateNeighborSolicitation(srcI,dstI,dstI) // NUD 
 			e.DstMAC = nce.HWAddr
 			if e.SerializeTo(solp,gopacket.SerializeOptions{true,true})!=nil {
 				po.WritePacketData(solp.Bytes())
 			}
 		    }
-		case ND6_NC_INCOMPLETE:	{
+		    */
+		case ND6_NC_INCOMPLETE,ND6_NC_PROBE: {
 			srcI := net.IP(nce.LocalIPAddr.Array[:])
 			dstI := net.IP(nce.IPAddr.Array[:])
 			solp,hwaddr := h.nd6CreateNeighborSolicitation(srcI,nil,dstI) /* AR */

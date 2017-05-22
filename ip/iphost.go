@@ -55,6 +55,8 @@ type IPv6PrefixEntry struct{
 type IPv6AddressEntry struct{
 	Unicast, SolicitedMulticast Key6
 	
+	Tentative bool
+	
 	/*
 	 * The prefix this IPv6 Address was derived from, if any.
 	 *
@@ -130,6 +132,13 @@ func (i *IPHost) input6(targ net.IP) (my bool) {
 	_,my = i.V6[i6]
 	return
 }
+func (i *IPHost) GetTarget6(targ net.IP) (obj *IPv6AddressEntry, my bool) {
+	var i6 Key6
+	i6.Decode(targ)
+	i.RLock(); defer i.RUnlock()
+	obj,my = i.V6[i6]
+	return
+}
 func (i *IPHost) Input(targ net.IP) (my bool) {
 	switch len(targ) {
 	case 4:
@@ -138,6 +147,11 @@ func (i *IPHost) Input(targ net.IP) (my bool) {
 		my = i.input6(targ)
 	}
 	return
+}
+func (i *IPHost) SlaacFailedV6(addr *IPv6AddressEntry) {
+	i.Lock(); defer i.Unlock()
+	delete(i.V6,addr.Unicast)
+	delete(i.S6,addr.SolicitedMulticast)
 }
 func (i *IPHost) addIP4Addr(ip, sn, gw net.IP) {
 	var i4,s4,g4 Key4
@@ -200,14 +214,15 @@ func (i *IPHost) IsOnLink(ip net.IP) bool {
 		ip[5]==0 &&
 		ip[6]==0 &&
 		ip[7]==0 { return true }
-	for _,px := range i.extractPrefixes() {
+	i.RLock(); defer i.RUnlock()
+	for px,pobj := range i.Prefix6 {
 		eq := byte(0)
 		lng := int(px.Len)
 		hi := lng>>3
 		lo := lng&7
 		for i:=0 ; i<hi; i++ { eq |= px.IP[i]^ip[i] }
 		if lo!=0 {   eq |= (px.IP[hi]^ip[hi]) & bitbytes[lo]   }
-		if eq==0 { return true }
+		if eq==0 && pobj.Onlink { return true }
 	}
 	return false
 }

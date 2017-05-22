@@ -43,6 +43,9 @@ func (h *Host) ResolutionV6(l *list.List, srcIP, destIP net.IP, po PacketOutput)
 	}else{
 		dip := NewIPv6Addr(destIP)
 		ncache := h.NC6
+		
+		ncache.Redirect(&dip)
+		
 		/*
 		 * RFC4861 7.2.
 		 *   Address resolution is performed only on addresses that are
@@ -51,14 +54,12 @@ func (h *Host) ResolutionV6(l *list.List, srcIP, destIP net.IP, po PacketOutput)
 		 *   Address resolution is never  performed on multicast addresses.
 		 */
 		if !h.Host.IsOnLink(dip.Array[:]) {
-			/* TODO: Get a better way to obtain the router. */
-			f := ncache.Routers.Front()
-			if f==nil { return ENoGateway } /* FAIL */
-			router := f.Value.(*Nd6Nce)
-			dip = router.IPAddr
+			nipa := h.NC6.SelectRouter()
+			if nipa==nil { return ENoGateway }
+			dip = *nipa
+			ncache.Redirect(&dip)
 		}
 		
-		ncache.Redirect(&dip)
 restartCache:
 		nce := ncache.LookupValidOnly(dip.Array[:])
 		nce.Lock()
@@ -85,11 +86,10 @@ restartCache:
 				if err!=nil { return err }
 				po.WritePacketData(solp.Bytes())
 			}
-			nce.Sendchain.PushBackList(l)
-			
 			nce.PlusEntry.Remove()
 			ncache.Retrans.PushBack(&nce.PlusEntry)
-			return nil
+			
+			fallthrough
 		case ND6_NC_INCOMPLETE:
 			nce.Sendchain.PushBackList(l)
 			return nil

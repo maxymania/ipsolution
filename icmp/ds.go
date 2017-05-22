@@ -59,20 +59,35 @@ func (l *List) PushFront(m *Member) bool {
 	return true
 }
 func (l *List) Back() *Member{
+	l.mutex.Lock(); defer l.mutex.Unlock()
 	e := l.self.Back()
 	if e==nil { return nil }
 	return e.Value.(*Member)
 }
 func (l *List) Front() *Member{
+	l.mutex.Lock(); defer l.mutex.Unlock()
 	e := l.self.Front()
 	if e==nil { return nil }
 	return e.Value.(*Member)
 }
 func (l *List) MoveFrontToBack() *Member{
+	l.mutex.Lock(); defer l.mutex.Unlock()
 	e := l.self.Front()
 	if e==nil { return nil }
 	l.self.MoveToBack(e)
 	return e.Value.(*Member)
+}
+func (l *List) Copy(ol *list.List) []interface{} {
+	l.mutex.Lock(); defer l.mutex.Unlock()
+	arr := make([]interface{},0,l.self.Len())
+	for e := l.self.Front(); e!=nil; e = e.Next() {
+		arr = append(arr,e.Value)
+	}
+	return arr
+}
+func (l *List) CopyRaw(ol *list.List) {
+	l.mutex.Lock(); defer l.mutex.Unlock()
+	ol.PushBackList(&l.self)
 }
 
 
@@ -122,8 +137,6 @@ func (m *Member) MoveToFront() {
 	
 	p.self.MoveToFront(m.self)
 }
-
-// Do not use.
 func (m *Member) Swap(other *Member) {
 	p := m.parent
 	if p==nil { return }
@@ -142,4 +155,5 @@ func (m *Member) Swap(other *Member) {
 	
 	m.self,other.self = other.self,m.self	
 }
+
 
