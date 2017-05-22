@@ -350,6 +350,7 @@ restartCache:
 			nce.Tstamp = time.Now()
 			nce.HWAddr = source_lla
 			nce.Entry.MoveToBack()
+			nce.PlusEntry.Remove()
 		}
 		sendchain := nce.Sendchain
 		nce.Sendchain = list.New()
@@ -507,8 +508,10 @@ restartCache:
 		 *  - If the advertisement's Solicited flag is set, the state of the
 		 *    entry is set to REACHABLE; otherwise, it is set to STALE.
 		 */
+		nce.PlusEntry.Remove()
 		if (flags&flag_solicited)!=0 {
 			nce.State = ND6_NC_REACHABLE
+			ncache.Reachable.PushBack(&nce.PlusEntry)
 		}else{
 			nce.State = ND6_NC_STALE
 		}
@@ -546,6 +549,7 @@ restartCache:
 				nce.State = ND6_NC_STALE
 				nce.Tstamp = time.Now()
 				nce.Entry.MoveToBack()
+				nce.PlusEntry.Remove()
 			}
 		}else{
 			/*
@@ -570,8 +574,10 @@ restartCache:
 			 *       unchanged.
 			 */
 			
+			nce.PlusEntry.Remove()
 			if (flags&flag_solicited)!=0 {
 				nce.State = ND6_NC_REACHABLE
+				ncache.Reachable.PushBack(&nce.PlusEntry)
 			}else{
 				nce.State = ND6_NC_STALE
 			}
@@ -787,6 +793,7 @@ restartCache:
 		nce.HWAddr = source_lla
 		nce.Tstamp = NOW
 		nce.Entry.MoveToBack()
+		nce.PlusEntry.Remove()
 	}else{
 		/*
 		 * If no Source Link-Layer Address is included, but a corresponding Neighbor

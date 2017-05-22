@@ -94,7 +94,8 @@ restartCache:
 			nce.Sendchain.PushBackList(l)
 			return nil
 		case ND6_NC_STALE:
-			/* RFC4861 7.3.3:
+			/*
+			 * RFC4861 7.3.3:
 			 *   The first time a node sends a packet to a neighbor whose entry is
 			 *   STALE, the sender changes the state to DELAY and sets a timer to
 			 *   expire in DELAY_FIRST_PROBE_TIME seconds.
@@ -108,7 +109,7 @@ restartCache:
 			ncache.Delay.PushBack(&nce.PlusEntry)
 		}
 		
-		h.send_IPv6(l,nce.HWAddr,po)
+		go h.send_IPv6(l,nce.HWAddr,po)
 	}
 	return nil
 }

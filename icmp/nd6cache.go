@@ -279,10 +279,9 @@ func (n *Nd6Cache) AddRedirect(target,dest IPv6Addr) {
 	n.redirect[target] = dest
 }
 func (n *Nd6Cache) SelectRouter() *IPv6Addr {
-	li := list.New()
-	n.Routers.Copy(li)
-	for e := li.Front(); e!=nil ; e = e.Next() {
-		nce := e.Value.(*Nd6Nce)
+	
+	for _,obj := range n.Routers.Copy() {
+		nce := obj.(*Nd6Nce)
 		/*
 		 * Routers that are reachable or probably reachable (i.e., in any
                  * state other than INCOMPLETE) SHOULD be preferred over routers
@@ -367,6 +366,13 @@ func (n *Nd6Cache) TimerEvent(h *Host, e *eth.EthLayer2,po PacketOutput, NOW tim
 				po.WritePacketData(solp.Bytes())
 			}
 		    }
+		default:
+			/*
+			 * The Retrans-Queue is for PROBE- or INCOMPLETE-state only.
+			 *
+			 * Therefore, remove the Cache Entry from that list.
+			 */
+			nce.PlusEntry.Remove()
 		}
 		nce.Tstamp = NOW
 		nce.Entry.MoveToBack()

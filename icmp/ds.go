@@ -77,7 +77,7 @@ func (l *List) MoveFrontToBack() *Member{
 	l.self.MoveToBack(e)
 	return e.Value.(*Member)
 }
-func (l *List) Copy(ol *list.List) []interface{} {
+func (l *List) Copy() []interface{} {
 	l.mutex.Lock(); defer l.mutex.Unlock()
 	arr := make([]interface{},0,l.self.Len())
 	for e := l.self.Front(); e!=nil; e = e.Next() {
