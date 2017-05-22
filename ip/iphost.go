@@ -31,6 +31,11 @@ import "time"
 import "sync"
 import "container/list"
 
+var bitbytes = [8]byte{
+	0,0x80,0xc0,0xe0,0xf0,
+	0xf8,0xfc,0xfe,
+}
+
 type IPv6Prefix struct{
 	IP [16]byte
 	Len uint8
@@ -137,6 +142,7 @@ func (i *IPHost) Input(targ net.IP) (my bool) {
 func (i *IPHost) addIP4Addr(ip, sn, gw net.IP) {
 	var i4,s4,g4 Key4
 	i4.Decode(ip)
+	i.Lock(); defer i.Unlock()
 	addr,_ := i.V4[i4]
 	if addr!=nil { return }
 	if len(sn)==4 {
@@ -157,6 +163,7 @@ func (i *IPHost) addIP4Addr(ip, sn, gw net.IP) {
 func (i *IPHost) addIP6Addr(ip net.IP) {
 	var i6,m6 Key6
 	i6.Decode(ip)
+	i.Lock(); defer i.Unlock()
 	addr,_ := i.V6[i6]
 	if addr!=nil { return }
 	/* Solicited Multicast address */
@@ -175,6 +182,34 @@ func (i *IPHost) AddIPAddr(ip net.IP) {
 	case 16:
 		i.addIP6Addr(ip)
 	}
+}
+
+func (i *IPHost) extractPrefixes() []IPv6Prefix {	
+	i.RLock(); defer i.RUnlock()
+	px := make([]IPv6Prefix,0,len(i.Prefix6))
+	for k := range i.Prefix6 { px = append(px,k) }
+	return px
+}
+
+func (i *IPHost) IsOnLink(ip net.IP) bool {
+	if	ip[0]==0xfe &&
+		ip[1]==0x80 &&
+		ip[2]==0 &&
+		ip[3]==0 &&
+		ip[4]==0 &&
+		ip[5]==0 &&
+		ip[6]==0 &&
+		ip[7]==0 { return true }
+	for _,px := range i.extractPrefixes() {
+		eq := byte(0)
+		lng := int(px.Len)
+		hi := lng>>3
+		lo := lng&7
+		for i:=0 ; i<hi; i++ { eq |= px.IP[i]^ip[i] }
+		if lo!=0 {   eq |= (px.IP[hi]^ip[hi]) & bitbytes[lo]   }
+		if eq==0 { return true }
+	}
+	return false
 }
 
 

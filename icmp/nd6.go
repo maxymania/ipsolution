@@ -91,6 +91,94 @@ func ipis0(ip net.IP) bool{
 	return true
 }
 
+func (h *Host) nd6CreateNeighborSolicitation(
+	/* nil for, DAD */ src,
+	/*set for NUD,  nil for DAD & AR */ dest,
+	target net.IP) (gopacket.SerializeBuffer,net.HardwareAddr) {
+	
+	hwaddr := net.HardwareAddr(nil)
+	
+	buf := new(bytes.Buffer)
+	buf.Write(target)
+	
+	
+	
+	
+	/*
+	 * Check if, this is DAD.
+	 * Duplicate Address Detection sends Neighbor Solicitation
+	 * messages with an unspecified source address targeting its own
+	 * "tentative" address and without SLLAO.
+	 */
+	if len(src)==0 {
+		src = make(net.IP,16)
+	} else {
+		mac := h.Mac
+		macl := len(mac)+2
+		nm := (macl+7)&7
+		hml := macl>>3
+		if nm!=0 { hml++ }
+		
+		/* Source Link-Layer Address */
+		buf.WriteByte(1)
+		buf.WriteByte(byte(hml))
+		buf.Write(mac)
+		for ;nm>0;nm-- {
+			buf.WriteByte(0)
+		}
+	}
+	
+	if len(dest)==0 {
+		/*
+		 * AR and DAD
+		 *
+		 * Generate Solicited Multicast destination address from the Target address.
+		 */
+		dest = make(net.IP,16)
+		dest[0] = 0xff
+		dest[1] = 0x02
+		dest[11] = 0x01
+		dest[12] = 0xff
+		dest[13] = target[13]
+		dest[14] = target[14]
+		dest[15] = target[15]
+		
+		hwaddr = net.HardwareAddr{
+			/* {0x33,0x33} */
+			0x33,
+			0x33,
+			
+			/* dest[12:] */
+			0xff,
+			target[13],
+			target[14],
+			target[15],
+		}
+	}
+	
+	var ip layers.IPv6
+	var icmp layers.ICMPv6
+	icmp.TypeCode = layers.CreateICMPv6TypeCode(135,0)
+	icmp.TypeBytes[0] = 0
+	icmp.TypeBytes[1] = 0
+	icmp.TypeBytes[2] = 0
+	icmp.TypeBytes[3] = 0
+	icmp.SetNetworkLayerForChecksum(&ip)
+	ip.TrafficClass = 0
+	ip.FlowLabel = rand.Uint32()
+	ip.SrcIP = src
+	ip.DstIP = dest
+	ip.HopLimit = 255
+	
+	SB := gopacket.NewSerializeBufferExpectedSize(1280,0)
+	op := gopacket.SerializeOptions{true,true}
+	err := gopacket.SerializeLayers(SB,op,&ip,&icmp,gopacket.Payload(buf.Bytes()))
+	if err!=nil { return nil,nil }
+	
+	return SB,hwaddr
+}
+
+
 func (h *Host) nd6CreateNeighborAdvertisement(addr, rem net.IP,R,S,O bool) gopacket.SerializeBuffer{
 	buf := new(bytes.Buffer)
 	buf.Write(addr)

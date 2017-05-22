@@ -68,6 +68,13 @@ func (l *List) Front() *Member{
 	if e==nil { return nil }
 	return e.Value.(*Member)
 }
+func (l *List) MoveFrontToBack() *Member{
+	e := l.self.Front()
+	if e==nil { return nil }
+	l.self.MoveToBack(e)
+	return e.Value.(*Member)
+}
+
 
 func (m *Member) Container() *List { return m.parent }
 func (m *Member) Parent() interface{} {
@@ -116,6 +123,7 @@ func (m *Member) MoveToFront() {
 	p.self.MoveToFront(m.self)
 }
 
+// Do not use.
 func (m *Member) Swap(other *Member) {
 	p := m.parent
 	if p==nil { return }
