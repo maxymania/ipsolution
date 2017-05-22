@@ -58,6 +58,7 @@ type Host struct{
 	NetN Notifyable
 	EchoSocket Notifyable
 	NC6 *Nd6Cache
+	ARP *ArpCache
 	Host *ip.IPHost
 	Mac net.HardwareAddr
 	Vlan uint16
@@ -112,7 +113,8 @@ func duV6ToV4(code layers.ICMPv6TypeCode) layers.ICMPv4TypeCode {
 
 func (h *Host) Input(e *eth.EthLayer2, i *ip.IPLayerPart, po PacketOutput) error {
 	if i.IsAR {
-		return ENotSupp
+		h.arp(i,po)
+		return nil
 	}
 	switch i.NextLayerType {
 		case layers.LayerTypeICMPv4:
@@ -136,7 +138,8 @@ func (h *Host) input4(e *eth.EthLayer2, i *ip.IPLayerPart, po PacketOutput) (err
 		icmp.TypeCode = layers.CreateICMPv4TypeCode(layers.ICMPv4TypeEchoReply,icmp.TypeCode.Code())
 		// Flip addresses.
 		i.V4.SrcIP,i.V4.DstIP = i.V4.DstIP,i.V4.SrcIP
-		e.SrcMAC,e.DstMAC = e.DstMAC,e.SrcMAC
+		e.SrcMAC,e.DstMAC = h.Mac,e.SrcMAC
+		e.VLANIdentifier = h.Vlan
 		
 		// rewrite IPv4 fields.
 		i.V4.TOS = 0
@@ -229,18 +232,20 @@ func (h *Host) input6(e *eth.EthLayer2, i *ip.IPLayerPart, po PacketOutput) (err
 	case layers.ICMPv6TypeRedirect:
 		if h.NC6==nil { return }
 		h.nd6Redirect(i,&icmp,po)
-	// TODO: handle Neighbor Discovery Protocol.
 	// TODO: many ICMP requests are still ignored, harvest as needed.
 	}
 	return
 }
 func (h *Host) send_IPv6(l *list.List, dst net.HardwareAddr, po PacketOutput) {
+	h.send(l,dst,po,layers.EthernetTypeIPv6)
+}
+func (h *Host) send(l *list.List, dst net.HardwareAddr, po PacketOutput, etype layers.EthernetType) {
 	if l.Len()==0 { return }
 	var e eth.EthLayer2
 	e.SrcMAC = h.Mac
 	e.VLANIdentifier = h.Vlan
 	e.DstMAC = dst
-	e.EthernetType = layers.EthernetTypeIPv6
+	e.EthernetType = etype
 	
 	op := gopacket.SerializeOptions{true,true}
 	for elem := l.Front(); elem!=nil; elem = elem.Next() {
@@ -258,6 +263,5 @@ func (h *Host) send_IPv6(l *list.List, dst net.HardwareAddr, po PacketOutput) {
 		}
 	}
 }
-
 
 
