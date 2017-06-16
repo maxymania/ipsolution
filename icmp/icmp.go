@@ -236,9 +236,6 @@ func (h *Host) input6(e *eth.EthLayer2, i *ip.IPLayerPart, po PacketOutput) (err
 	}
 	return
 }
-func (h *Host) send_IPv6(l *list.List, dst net.HardwareAddr, po PacketOutput) {
-	h.send(l,dst,po,layers.EthernetTypeIPv6)
-}
 func (h *Host) send(l *list.List, dst net.HardwareAddr, po PacketOutput, etype layers.EthernetType) {
 	if l.Len()==0 { return }
 	var e eth.EthLayer2

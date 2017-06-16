@@ -353,7 +353,7 @@ func (h *Host) nd6NeighborSolicitation(i *ip.IPLayerPart, cm *layers.ICMPv6, po 
 			if buffer!=nil { sendchain.PushFront(buffer) }
 		}
 		
-		go h.send_IPv6(sendchain,source_lla,po)
+		go h.send(sendchain,source_lla,po,layers.EthernetTypeIPv6)
 	}else{
 		ncache := h.NC6
 		nce := ncache.LookupValidOnly(target)
@@ -373,7 +373,7 @@ func (h *Host) nd6NeighborSolicitation(i *ip.IPLayerPart, cm *layers.ICMPv6, po 
 			if buffer!=nil { sendchain.PushFront(buffer) }
 		}
 		
-		go h.send_IPv6(sendchain,nce.HWAddr,po)
+		go h.send(sendchain,nce.HWAddr,po,layers.EthernetTypeIPv6)
 	}
 	
 }
@@ -590,7 +590,7 @@ func (h *Host) nd6NeighborAdvertisement(i *ip.IPLayerPart, cm *layers.ICMPv6, po
 	nce.Sendchain = list.New()
 	
 	/* Send 'sendchain' packets. */
-	go h.send_IPv6(sendchain,target_lla,po)
+	go h.send(sendchain,target_lla,po,layers.EthernetTypeIPv6)
 }
 
 func (h *Host) nd6RouterAdvertisement(i *ip.IPLayerPart, cm *layers.ICMPv6, po PacketOutput) {

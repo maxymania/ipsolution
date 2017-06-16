@@ -39,7 +39,7 @@ func (h *Host) ResolutionV6(l *list.List, srcIP, destIP net.IP, po PacketOutput)
 		hwaddr := copymac(net.HardwareAddr(destIP[10:]))
 		hwaddr[0] = 0x33
 		hwaddr[1] = 0x33
-		h.send_IPv6(l,hwaddr,po)
+		h.send(l,hwaddr,po,layers.EthernetTypeIPv6)
 	}else{
 		dip := NewIPv6Addr(destIP)
 		ncache := h.NC6
@@ -103,7 +103,7 @@ func (h *Host) ResolutionV6(l *list.List, srcIP, destIP net.IP, po PacketOutput)
 			ncache.Delay.PushBack(&nce.PlusEntry)
 		}
 		
-		go h.send_IPv6(l,nce.HWAddr,po)
+		go h.send(l,nce.HWAddr,po,layers.EthernetTypeIPv6)
 	}
 	return nil
 }
