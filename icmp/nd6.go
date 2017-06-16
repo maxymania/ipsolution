@@ -317,15 +317,7 @@ func (h *Host) nd6NeighborSolicitation(i *ip.IPLayerPart, cm *layers.ICMPv6, po 
 		 */
 		
 		ncache := h.NC6
-restartCache:
 		nce := ncache.LookupOrCreate(target)
-		nce.Lock()
-		
-		/* This handles an extremely rare pathological case. */
-		if nce.Entry.Parent()!=ncache {
-			nce.Unlock()
-			goto restartCache
-		}
 		defer nce.Unlock()
 		
 		
@@ -364,16 +356,8 @@ restartCache:
 		go h.send_IPv6(sendchain,source_lla,po)
 	}else{
 		ncache := h.NC6
-restartCache2:
 		nce := ncache.LookupValidOnly(target)
 		if nce==nil { return /* Can't Send Neighbor Advertisements. (XXX) */ }
-		nce.RLock()
-		
-		/* This handles an extremely rare pathological case. */
-		if nce.Entry.Parent()!=ncache {
-			nce.RUnlock()
-			goto restartCache2
-		}
 		defer nce.RUnlock()
 		
 		switch nce.State {
@@ -468,8 +452,7 @@ func (h *Host) nd6NeighborAdvertisement(i *ip.IPLayerPart, cm *layers.ICMPv6, po
 	if len(target_lla)==0 { return }
 	
 	ncache := h.NC6
-restartCache:
-	nce := ncache.LookupOrCreate(target)
+	nce := ncache.LookupValidOnly(target)
 	
 	/*
 	 * RFC-4861 7.2.5.  Receipt of Neighbor Advertisements
@@ -481,13 +464,7 @@ restartCache:
 		 * recipient has apparently not initiated any communication with the
 		 * target.
 		 */
-	}
-	nce.Lock()
-	
-	/* This handles an extremely rare pathological case. */
-	if nce.Entry.Parent()!=ncache {
-		nce.Unlock()
-		goto restartCache
+		return
 	}
 	defer nce.Unlock()
 	
@@ -765,15 +742,7 @@ func (h *Host) nd6RouterAdvertisement(i *ip.IPLayerPart, cm *layers.ICMPv6, po P
 	
 	
 	ncache := h.NC6
-restartCache:
 	nce := ncache.LookupOrCreate(i.SrcIP)
-	nce.Lock()
-	
-	/* This handles an extremely rare pathological case. */
-	if nce.Entry.Parent()!=ncache {
-		nce.Unlock()
-		goto restartCache
-	}
 	/* XXX We should be using ``defer nce.Unlock()'' here, but we need to unlock earlier. */
 	
 	/*

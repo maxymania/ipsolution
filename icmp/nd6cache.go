@@ -218,14 +218,19 @@ func (n *Nd6Cache) Init() *Nd6Cache {
 }
 func (n *Nd6Cache) removeEntry(nce *Nd6Nce) {
 	nce.Entry.Remove()
+	nce.RouterEntry.Remove()
+	nce.PlusEntry.Remove()
+	nce.Lock()
 	n.mutex.Lock(); defer n.mutex.Unlock();
-	delete(n.Ipmap,nce.IPAddr)
+	if ptr,ok := n.Ipmap[nce.IPAddr]; ok && ptr==nce {
+		delete(n.Ipmap,nce.IPAddr)
+	}
 }
 func (n *Nd6Cache) LookupOrCreate(ip net.IP) *Nd6Nce {
 	n.mutex.Lock(); defer n.mutex.Unlock();
 	sp := NewIPv6Addr(ip)
 	nce,ok := n.Ipmap[sp]
-	if ok { return nce }
+	if ok { nce.Lock(); return nce }
 	nce = new(Nd6Nce).Init()
 	nce.IPAddr = sp
 	n.Ipmap[sp] = nce
@@ -238,6 +243,7 @@ func (n *Nd6Cache) LookupOrCreate(ip net.IP) *Nd6Nce {
 	}
 done:
 	n.Entries.PushBack(&nce.Entry)
+	nce.Lock()
 	return nce
 }
 func (n *Nd6Cache) Lookup(ip net.IP) *Nd6Nce {
@@ -245,6 +251,7 @@ func (n *Nd6Cache) Lookup(ip net.IP) *Nd6Nce {
 	sp := NewIPv6Addr(ip)
 	nce,ok := n.Ipmap[sp]
 	if !ok { return nil }
+	nce.Lock()
 	return nce
 }
 func (n *Nd6Cache) LookupValidOnly(ip net.IP) *Nd6Nce {
@@ -253,6 +260,7 @@ func (n *Nd6Cache) LookupValidOnly(ip net.IP) *Nd6Nce {
 	nce,ok := n.Ipmap[sp]
 	if !ok { return nil }
 	if nce.State == ND6_NC__PHANTOM_ { return nil }
+	nce.Lock()
 	return nce
 }
 func (n *Nd6Cache) Redirect(i *IPv6Addr){
@@ -341,8 +349,7 @@ func (n *Nd6Cache) TimerEvent(h *Host, e *eth.EthLayer2,po PacketOutput, NOW tim
 		if time.Since(nce.Tstamp) < nRETRANS_TIMER { nce.Unlock(); break }
 		nce.SolicitationSendCounter++
 		if nce.SolicitationSendCounter >= nMAX_UNICAST_SOLICIT {
-			n.removeEntry(nce)
-			nce.Unlock()
+			n.removeEntry(nce) /* This methods calls nce.Unlock() */
 			continue
 		}
 		switch nce.State {

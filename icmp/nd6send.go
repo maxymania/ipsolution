@@ -60,13 +60,7 @@ func (h *Host) ResolutionV6(l *list.List, srcIP, destIP net.IP, po PacketOutput)
 			ncache.Redirect(&dip)
 		}
 		
-restartCache:
 		nce := ncache.LookupValidOnly(dip.Array[:])
-		nce.Lock()
-		if nce.Entry.Parent()!=ncache {
-			nce.Unlock()
-			goto restartCache
-		}
 		defer nce.Unlock()
 		
 		switch nce.State {
