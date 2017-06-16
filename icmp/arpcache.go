@@ -106,11 +106,12 @@ func (a *ArpCache) Init() *ArpCache {
 	a.Ipmap = make(map[IPv4Addr]*ArpCe)
 	return a
 }
+// The returned *ArpCe is locked.
 func (n *ArpCache) LookupOrCreate(ip net.IP) *ArpCe {
 	n.mutex.Lock(); defer n.mutex.Unlock();
 	sp := NewIPv4Addr(ip)
 	nce,ok := n.Ipmap[sp]
-	if ok { return nce }
+	if ok { nce.Lock(); return nce }
 	nce = new(ArpCe).Init()
 	nce.IPAddr = sp
 	n.Ipmap[sp] = nce
@@ -126,6 +127,7 @@ func (n *ArpCache) LookupOrCreate(ip net.IP) *ArpCe {
 		delete(n.Ipmap,oe.IPAddr)
 	}
 	n.Entries.PushBack(&nce.Entry)
+	nce.Lock()
 	return nce
 }
 func (n *ArpCache) Lookup(ip net.IP) *ArpCe {
@@ -133,6 +135,7 @@ func (n *ArpCache) Lookup(ip net.IP) *ArpCe {
 	sp := NewIPv4Addr(ip)
 	nce,ok := n.Ipmap[sp]
 	if !ok { return nil }
+	nce.Lock()
 	return nce
 }
 func (n *ArpCache) LookupValidOnly(ip net.IP) *ArpCe {
@@ -141,6 +144,7 @@ func (n *ArpCache) LookupValidOnly(ip net.IP) *ArpCe {
 	nce,ok := n.Ipmap[sp]
 	if !ok { return nil }
 	if nce.State == ARP__PHANTOM_ { return nil }
+	nce.Lock()
 	return nce
 }
 

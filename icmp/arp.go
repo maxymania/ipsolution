@@ -43,14 +43,7 @@ func (h *Host) arp(i *ip.IPLayerPart, po PacketOutput) {
 	if h.Host.Input(sh) { /* Duplicate IP Address. */ return }
 	
 	ncache := h.ARP
-restartCache:
 	ce := ncache.LookupOrCreate(sp)
-	ce.Lock()
-	/* This handles an extremely rare pathological case. */
-	if ce.Entry.Parent()!=ncache {
-		ce.Unlock()
-		goto restartCache
-	}
 	defer ce.Unlock()
 	
 	isOurs := h.Host.Input(tp)
