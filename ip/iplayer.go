@@ -49,7 +49,6 @@ type IPLayerPart struct {
 }
 
 func (ip *IPLayerPart) DecodeType(t gopacket.LayerType,data []byte, df gopacket.DecodeFeedback) (err error) {
-	err = fmt.Errorf("Unsupported Type %v",t)
 	switch t{
 	case layers.LayerTypeIPv4:
 		err = ip.V4.DecodeFromBytes(data,df)
@@ -80,6 +79,8 @@ func (ip *IPLayerPart) DecodeType(t gopacket.LayerType,data []byte, df gopacket.
 		ip.DstMac = net.HardwareAddr(ip.AR4.DstHwAddress)
 		ip.IsAR = true
 		ip.IsV6 = false
+	default:
+		err = fmt.Errorf("Unsupported Type %v",t)
 	}
 	return
 }
