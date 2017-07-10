@@ -102,7 +102,7 @@ func (a *ArpCache) Init() *ArpCache {
 	a.Entries.Init()
 	a.Maxsize = 128000
 	a.Timeout = 60 * time.Second
-	a.SoftTmoDiff = 3
+	a.SoftTmoDiff = 3 * time.Second
 	a.Ipmap = make(map[IPv4Addr]*ArpCe)
 	return a
 }
@@ -147,7 +147,4 @@ func (n *ArpCache) LookupValidOnly(ip net.IP) *ArpCe {
 	nce.Lock()
 	return nce
 }
-
-
-
 

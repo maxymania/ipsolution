@@ -31,6 +31,7 @@ import "github.com/google/gopacket"
 import "github.com/google/gopacket/layers"
 import "time"
 import "container/list"
+import "net"
 
 func (h *Host) arp(i *ip.IPLayerPart, po PacketOutput) {
 	var sendchain *list.List
@@ -83,4 +84,31 @@ func (h *Host) arp(i *ip.IPLayerPart, po PacketOutput) {
 		h.send(sendchain,sh,po,layers.EthernetTypeIPv4)
 	}
 }
+
+func (h *Host) arpSendSolicitation(src, dst net.IP, po PacketOutput) {
+	var ethout eth.EthLayer2
+	var arpout layers.ARP
+	
+	dh := net.HardwareAddr{0xff,0xff,0xff,0xff,0xff,0xff}
+	
+	ethout.VLANIdentifier = h.Vlan
+	ethout.SrcMAC = h.Mac
+	arpout.SourceHwAddress = h.Mac
+	arpout.SourceProtAddress = src
+	
+	ethout.DstMAC = dh
+	arpout.DstHwAddress = dh
+	arpout.DstProtAddress = dst
+	
+	arpout.AddrType = layers.LinkTypeEthernet
+	arpout.Protocol = layers.EthernetTypeIPv4
+	arpout.Operation = layers.ARPRequest
+	
+	SB := gopacket.NewSerializeBufferExpectedSize(128,0)
+	op := gopacket.SerializeOptions{true,true}
+	gopacket.SerializeLayers(SB,op,&ethout,&arpout)
+	po.WritePacketData(SB.Bytes())
+	
+}
+
 
