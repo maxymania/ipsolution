@@ -52,6 +52,12 @@ type IP6Unreachable struct{
 	FailType layers.ICMPv6TypeCode
 	Addr net.IP
 }
+type IPProtocolControlMessage struct{
+	Protocol layers.IPProtocol
+	RemoteIP, LocalIP net.IP
+	RemotePort, LocalPort uint16
+	FailType layers.ICMPv4TypeCode
+}
 
 type Echo struct {
 	Head,Body []byte
@@ -161,6 +167,11 @@ func (h *Host) input4(e *eth.EthLayer2, i *ip.IPLayerPart, po PacketOutput) (err
 		if h.NetN==nil { return }
 		switch icmp.TypeCode.Code() {
 		case layers.ICMPv4CodeProtocol,layers.ICMPv4CodePort:
+			ipProtocolControl := new(IPProtocolControlMessage)
+			if ipProtocolControl.decode(icmp.Payload,false,gopacket.NilDecodeFeedback)==nil {
+				ipProtocolControl.FailType = icmp.TypeCode
+				h.NetN.Notify(ipProtocolControl)
+			}
 			return
 		default:
 			h.NetN.Notify(&IPUnreachable{icmp.TypeCode,copyip(i.SrcIP)})
@@ -204,7 +215,14 @@ func (h *Host) input6(e *eth.EthLayer2, i *ip.IPLayerPart, po PacketOutput) (err
 	case layers.ICMPv6TypeDestinationUnreachable:
 		switch icmp.TypeCode.Code() {
 		case layers.ICMPv6CodePortUnreachable:
-			/* + layers.ICMPv6TypeParameterProblem , layers.ICMPv6CodeUnrecognizedNextHeader */
+			if h.NetN==nil { return }
+			ipProtocolControl := new(IPProtocolControlMessage)
+			if ipProtocolControl.decode(icmp.Payload,true,gopacket.NilDecodeFeedback)==nil {
+				ipProtocolControl.FailType = layers.CreateICMPv4TypeCode(
+					layers.ICMPv4TypeDestinationUnreachable,
+					layers.ICMPv4CodePort)
+				h.NetN.Notify(ipProtocolControl)
+			}
 			return
 		default:
 			if h.NetNv6!=nil {
@@ -243,6 +261,19 @@ func (h *Host) input6(e *eth.EthLayer2, i *ip.IPLayerPart, po PacketOutput) (err
 	case layers.ICMPv6TypeRedirect:
 		if h.NC6==nil { return }
 		h.nd6Redirect(i,&icmp,po)
+	case layers.ICMPv6TypeParameterProblem:
+		switch icmp.TypeCode.Code() {
+		case layers.ICMPv6CodeUnrecognizedNextHeader:
+			if h.NetN==nil { return }
+			ipProtocolControl := new(IPProtocolControlMessage)
+			if ipProtocolControl.decode(icmp.Payload,true,gopacket.NilDecodeFeedback)==nil {
+				ipProtocolControl.FailType = layers.CreateICMPv4TypeCode(
+					layers.ICMPv4TypeDestinationUnreachable,
+					layers.ICMPv4CodeProtocol)
+				h.NetN.Notify(ipProtocolControl)
+			}
+			return
+		}
 	// TODO: many ICMP requests are still ignored, harvest as needed.
 	}
 	return
