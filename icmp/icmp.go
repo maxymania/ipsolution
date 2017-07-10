@@ -48,6 +48,10 @@ type IPUnreachable struct{
 	FailType layers.ICMPv4TypeCode
 	Addr net.IP
 }
+type IP6Unreachable struct{
+	FailType layers.ICMPv6TypeCode
+	Addr net.IP
+}
 
 type Echo struct {
 	Head,Body []byte
@@ -56,6 +60,7 @@ type Echo struct {
 
 type Host struct{
 	NetN Notifyable
+	NetNv6 Notifyable
 	EchoSocket Notifyable
 	NC6 *Nd6Cache
 	ARP *ArpCache
@@ -148,6 +153,7 @@ func (h *Host) input4(e *eth.EthLayer2, i *ip.IPLayerPart, po PacketOutput) (err
 		so := gopacket.SerializeOptions{true,true}
 		sb := gopacket.NewSerializeBufferExpectedSize(len(icmp.Payload)+128,0)
 		gopacket.SerializeLayers(sb,so,e,&i.V4,&icmp,gopacket.Payload(icmp.Payload))
+		po.WritePacketData(sb.Bytes())
 	case layers.ICMPv4TypeEchoReply:
 		if h.EchoSocket==nil { return }
 		h.EchoSocket.Notify(&Echo{copydat(icmp.Contents),copydat(icmp.Payload),copyip(i.SrcIP)})
@@ -191,18 +197,23 @@ func (h *Host) input6(e *eth.EthLayer2, i *ip.IPLayerPart, po PacketOutput) (err
 		so := gopacket.SerializeOptions{true,true}
 		sb := gopacket.NewSerializeBufferExpectedSize(len(icmp.Payload)+128,0)
 		gopacket.SerializeLayers(sb,so,e,&i.V6,&icmp,gopacket.Payload(icmp.Payload))
+		po.WritePacketData(sb.Bytes())
 	case layers.ICMPv6TypeEchoReply:
 		if h.EchoSocket==nil { return }
 		h.EchoSocket.Notify(&Echo{copydat(icmp.Contents),copydat(icmp.Payload),copyip(i.SrcIP)})
 	case layers.ICMPv6TypeDestinationUnreachable:
-		if h.NetN==nil { return }
-		
 		switch icmp.TypeCode.Code() {
 		case layers.ICMPv6CodePortUnreachable:
+			/* + layers.ICMPv6TypeParameterProblem , layers.ICMPv6CodeUnrecognizedNextHeader */
 			return
 		default:
-			h.NetN.Notify(&IPUnreachable{duV6ToV4(icmp.TypeCode),copyip(i.SrcIP)})
+			if h.NetNv6!=nil {
+				h.NetNv6.Notify(IP6Unreachable{icmp.TypeCode,copyip(i.SrcIP)})
+			}else  if h.NetN!=nil {
+				h.NetN.Notify(&IPUnreachable{duV6ToV4(icmp.TypeCode),copyip(i.SrcIP)})
+			}
 		}
+		
 	case layers.ICMPv6TypeTimeExceeded:
 		if h.NetN==nil { return }
 		switch icmp.TypeCode.Code() {
