@@ -70,11 +70,7 @@ func (ip *IPLayerPart) DecodeType(t gopacket.LayerType,data []byte, df gopacket.
 		ip.IsAR = false
 		ip.IsV6 = true
 		if err == nil {
-			if ip.ES6.CanDecode().Contains(ip.NextLayerType) {
-				err = ip.ES6.DecodeFromBytes(ip.Payload,df)
-				/* Swap Extension Payload and IPv6 Payload */
-				ip.ES6.Payload,ip.Payload = ip.Payload,ip.ES6.Payload
-			}
+			err = ip.decodeES6(df)
 		}
 	case layers.LayerTypeARP:
 		err = ip.AR4.DecodeFromBytes(data,df)
@@ -95,5 +91,24 @@ func (ip *IPLayerPart) PayloadType() gopacket.LayerType {
 }
 func (ip *IPLayerPart) String() string {
 	return fmt.Sprintf("%v->%v (%v)",ip.SrcIP,ip.DstIP,ip.NextLayerType)
+}
+
+func (ip *IPLayerPart) decodeES6(df gopacket.DecodeFeedback) (err error) {
+	if !ip.ES6.CanDecode().Contains(ip.NextLayerType) { return }
+	payload := ip.Payload
+	ip.ES6.Payload = payload
+	lng := 0
+	for ip.ES6.CanDecode().Contains(ip.NextLayerType) {
+		err = ip.ES6.DecodeFromBytes(ip.ES6.Payload,df)
+		if err!=nil { return }
+		lng += len(ip.ES6.Contents)
+		ip.NextLayerType = ip.ES6.NextHeader.LayerType()
+	}
+	ip.ES6.Contents = payload[:lng]
+	
+	/* Swap Extension Payload and IPv6 Payload */
+	ip.Payload = ip.ES6.Payload
+	ip.ES6.Payload = payload
+	return
 }
 
